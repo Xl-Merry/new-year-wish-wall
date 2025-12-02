@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新年心愿墙 | 多人共享版</title>
+  <!-- 引入外部资源 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <!-- 引入Firebase（免费后端） -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+  
+  <!-- 配置Tailwind CSS -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#FF3E6C', // 主色调：喜庆红
+            secondary: '#FFD166', // 辅助色：金红
+            accent: '#06D6A0', // 强调色：青绿
+            dark: '#118AB2', // 深色：蓝
+            light: '#F7F9FB', // 浅色：白
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            serif: ['"Noto Serif SC"', 'serif'],
+            cursive: ['"ZCOOL KuaiLe"', 'cursive'],
+            display: ['"Ma Shan Zheng"', 'cursive'],
+          },
+          animation: {
+            'float': 'float 3s ease-in-out infinite',
+            'shine': 'shine 2s ease-in-out infinite',
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'bounce-effect': 'bounceEffect 0.5s ease',
+            'explode': 'explode 0.6s ease-out forwards',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-10px)' },
+            },
+            shine: {
+              '0%, 100%': { textShadow: '0 0 5px rgba(255,255,255,0.8), 0 0 10px rgba(255,62,108,0.5)' },
+              '50%': { textShadow: '0 0 10px rgba(255,255,255,1), 0 0 20px rgba(255,62,108,0.8), 0 0 30px rgba(255,62,108,0.5)' },
+            },
+            bounceEffect: {
+              '0%': { transform: 'scale(1.2)', opacity: 0.9 },
+              '50%': { transform: 'scale(1.4)', opacity: 1 },
+              '100%': { transform: 'scale(1)', opacity: 0.9 },
+            },
+            explode: {
+              '0%': { transform: 'scale(1)', opacity: 1 },
+              '50%': { transform: 'scale(1.5)', opacity: 0.7 },
+              '100%': { transform: 'scale(0)', opacity: 0 },
+            }
+          }
+        },
+      }
+    }
+  </script>
+  
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .text-shadow {
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      .text-shadow-lg {
+        text-shadow: 0 4px 8px rgba(0,0,0,0.25);
+      }
+      .text-gradient {
+        background-clip: text;
+        -webkit-background-clip: text;
+        color: transparent;
+      }
+      .backdrop-blur {
+        backdrop-filter: blur(8px);
+      }
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    }
+  </style>
+  
+  <!-- 引入中文字体 -->
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+  
+  <style>
+    /* 弹幕容器样式 */
+    .danmaku-container {
+      position: relative;
+      overflow: hidden;
+      height: 60vh;
+      min-height: 400px;
+    }
+    
+    /* 弹幕样式 */
+    .danmaku {
+      position: absolute;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: transform 0.3s ease;
+      z-index: 10;
+      will-change: transform; /* 优化动画性能 */
+    }
+    
+    .danmaku:hover {
+      transform: scale(1.1);
+      z-index: 20;
+    }
+    
+    /* 粒子背景 */
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.7);
+      animation: float 6s ease-in-out infinite;
+    }
+    
+    /* 反弹粒子效果 */
+    .bounce-particle {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 15;
+    }
+    
+    /* 加载动画 */
+    .loader {
+      width: 48px;
+      height: 48px;
+      border: 5px solid #fff;
+      border-bottom-color: #FF3E6C;
+      border-radius: 50%;
+      animation: rotation 1s linear infinite;
+    }
+    
+    @keyframes rotation {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* 反弹闪烁效果 */
+    @keyframes flash {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    .flash-effect {
+      animation: flash 0.3s ease;
+    }
+  </style>
+</head>
+
+<body class="bg-gradient-to-br from-dark to-primary min-h-screen text-light overflow-x-hidden">
+  <!-- 粒子背景 -->
+  <div id="particles" class="fixed inset-0 z-0 opacity-30"></div>
+  
+  <!-- 页面容器 -->
+  <div class="relative z-10 container mx-auto px-4 py-8 max-w-7xl">
+    <!-- 头部 -->
+    <header class="text-center mb-8">
+      <h1 class="text-[clamp(2.5rem,5vw,4rem)] font-display font-bold text-secondary animate-shine mb-2">
+        新年心愿墙
+      </h1>
+      <p class="text-[clamp(1rem,2vw,1.25rem)] text-light/80 max-w-2xl mx-auto">
+        写下你的新年愿望，与同事们共同分享 | 心愿自动保留7天
+      </p>
+    </header>
+    
+    <!-- 主要内容区 -->
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- 左侧：许愿面板 -->
+      <div class="lg:col-span-1 bg-white/10 backdrop-blur rounded-2xl p-6 shadow-xl">
+        <h2 class="text-2xl font-bold mb-6 flex items-center">
+          <i class="fa fa-star text-secondary mr-2"></i> 许下心愿
+        </h2>
+        
+        <!-- 昵称输入（可选） -->
+        <div class="mb-6">
+          <label for="nicknameInput" class="block text-sm font-medium mb-2">你的昵称（可选）</label>
+          <input 
+            type="text" 
+            id="nicknameInput" 
+            class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 focus:border-secondary focus:ring-2 focus:ring-secondary/50 outline-none text-white placeholder-white/60"
+            placeholder="输入你的昵称（不填则匿名）"
+            maxlength="10"
+          >
+        </div>
+        
+        <!-- 心愿输入框 -->
+        <div class="mb-6">
+          <label for="wishInput" class="block text-sm font-medium mb-2">心愿内容（限10字）</label>
+          <textarea 
+            id="wishInput" 
+            class="w-full px-4 py-3 rounded-lg bg-white/20 border border-white/30 focus:border-secondary focus:ring-2 focus:ring-secondary/50 outline-none text-white placeholder-white/60 resize-none h-24"
+            placeholder="输入你的新年愿望..."
+            maxlength="50"
+          ></textarea>
+          <div class="flex justify-between mt-2 text-xs text-white/70">
+            <span id="charCount">0/10</span>
+            <span class="text-secondary" id="truncateNotice" style="display: none;">已自动截取10字</span>
+          </div>
+        </div>
+        
+        <!-- 文字样式设置 -->
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold mb-4">文字样式</h3>
+          
+          <!-- 字体选择 -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">字体</label>
+            <select id="fontFamily" class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 focus:border-secondary focus:ring-2 focus:ring-secondary/50 outline-none text-white">
+              <option value="sans">默认无衬线</option>
+              <option value="serif">优雅衬线</option>
+              <option value="cursive">快乐卡通</option>
+              <option value="display">毛笔书法</option>
+            </select>
+          </div>
+          
+          <!-- 字号选择 -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">字号</label>
+            <input 
+              type="range" 
+              id="fontSize" 
+              min="16" 
+              max="36" 
+              value="24" 
+              class="w-full accent-secondary"
+            >
+            <div class="flex justify-between text-xs text-white/70 mt-1">
+              <span>小</span>
+              <span id="fontSizeValue">24px</span>
+              <span>大</span>
+            </div>
+          </div>
+          
+          <!-- 颜色选择 -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-2">颜色</label>
+            <div class="flex gap-2 flex-wrap">
+              <button class="w-8 h-8 rounded-full bg-white border-2 border-transparent focus:border-secondary" data-color="#FFFFFF"></button>
+              <button class="w-8 h-8 rounded-full bg-secondary border-2 border-transparent focus:border-secondary" data-color="#FFD166"></button>
+              <button class="w-8 h-8 rounded-full bg-accent border-2 border-transparent focus:border-secondary" data-color="#06D6A0"></button>
+              <button class="w-8 h-8 rounded-full bg-yellow-300 border-2 border-transparent focus:border-secondary" data-color="#FDE047"></button>
+              <button class="w-8 h-8 rounded-full bg-purple-400 border-2 border-transparent focus:border-secondary" data-color="#A855F7"></button>
+              <button class="w-8 h-8 rounded-full bg-blue-300 border-2 border-transparent focus:border-secondary" data-color="#93C5FD"></button>
+              <input type="color" id="customColor" class="w-8 h-8 rounded-full p-0 border-0 bg-transparent" value="#FFFFFF">
+            </div>
+          </div>
+        </div>
+        
+        <!-- 文字模板 -->
+        <div class="mb-6">
+          <h3 class="text-lg font-semibold mb-4">文字模板</h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button class="template-btn py-2 px-3 rounded-lg bg-white/10 border border-white/20 hover:border-secondary transition-colors" 
+                    data-font="display" data-size="28" data-color="#FFD166" data-effect="shine">
+              书法金边
+            </button>
+            <button class="template-btn py-2 px-3 rounded-lg bg-white/10 border border-white/20 hover:border-secondary transition-colors"
+                    data-font="cursive" data-size="26" data-color="#06D6A0" data-effect="float">
+              卡通荧光
+            </button>
+            <button class="template-btn py-2 px-3 rounded-lg bg-white/10 border border-white/20 hover:border-secondary transition-colors"
+                    data-font="serif" data-size="24" data-color="#93C5FD" data-effect="none">
+              优雅古典
+            </button>
+            <button class="template-btn py-2 px-3 rounded-lg bg-white/10 border border-white/20 hover:border-secondary transition-colors"
+                    data-font="sans" data-size="22" data-color="#FDE047" data-effect="pulse-slow">
+              简约闪耀
+            </button>
+          </div>
+        </div>
+        
+        <!-- 提交按钮 -->
+        <button id="submitWish" class="w-full py-3 rounded-lg bg-secondary text-dark font-bold text-lg hover:bg-secondary/90 transition-colors shadow-lg shadow-secondary/30 flex items-center justify-center">
+          <i class="fa fa-paper-plane mr-2"></i> 放飞心愿
+        </button>
+      </div>
+      
+      <!-- 右侧：心愿弹幕区 -->
+      <div class="lg:col-span-2 flex flex-col">
+        <!-- 弹幕控制栏 -->
+        <div class="bg-white/10 backdrop-blur rounded-2xl p-4 mb-4 flex justify-between items-center">
+          <h2 class="text-xl font-bold flex items-center">
+            <i class="fa fa-comments text-secondary mr-2"></i> 心愿弹幕
+            <span id="onlineCount" class="ml-2 text-sm bg-secondary/20 text-secondary px-2 py-0.5 rounded-full">加载中...</span>
+          </h2>
+          <div class="flex gap-3">
+            <button id="pauseDanmaku" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center">
+              <i class="fa fa-pause mr-1"></i> 暂停
+            </button>
+            <button id="resumeDanmaku" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center">
+              <i class="fa fa-play mr-1"></i> 继续
+            </button>
+            <button id="refreshDanmaku" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center">
+              <i class="fa fa-refresh mr-1"></i> 刷新
+            </button>
+          </div>
+        </div>
+        
+        <!-- 弹幕容器 -->
+        <div class="danmaku-container bg-gradient-to-b from-dark/30 to-primary/30 backdrop-blur rounded-2xl p-4 shadow-xl relative overflow-hidden">
+          <!-- 装饰元素 -->
+          <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-secondary via-accent to-secondary"></div>
+          <div class="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-accent via-secondary to-accent"></div>
+          
+          <!-- 弹幕将动态添加到这里 -->
+          <div id="danmakuWrapper" class="relative w-full h-full"></div>
+          
+          <!-- 粒子效果容器 -->
+          <div id="particleContainer" class="absolute inset-0 pointer-events-none z-15"></div>
+          
+          <!-- 空状态提示 -->
+          <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-white/70">
+            <i class="fa fa-comment-o text-5xl mb-4"></i>
+            <p class="text-xl">还没有心愿，快来许下第一个愿望吧～</p>
+          </div>
+          
+          <!-- 加载提示 -->
+          <div id="loadingState" class="absolute inset-0 flex items-center justify-center">
+            <div class="loader"></div>
+          </div>
+        </div>
+        
+        <!-- 心愿统计 -->
+        <div class="bg-white/10 backdrop-blur rounded-2xl p-4 mt-4">
+          <h3 class="text-lg font-semibold mb-2">心愿统计</h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white/5 rounded-lg p-3 text-center">
+              <div class="text-2xl font-bold text-secondary" id="totalWishes">0</div>
+              <div class="text-sm text-white/70">总心愿数</div>
+            </div>
+            <div class="bg-white/5 rounded-lg p-3 text-center">
+              <div class="text-2xl font-bold text-accent" id="activeWishes">0</div>
+              <div class="text-sm text-white/70">活跃心愿</div>
+            </div>
+            <div class="bg-white/5 rounded-lg p-3 text-center">
+              <div class="text-2xl font-bold text-blue-300" id="expiredWishes">0</div>
+              <div class="text-sm text-white/70">已过期</div>
+            </div>
+            <div class="bg-white/5 rounded-lg p-3 text-center">
+              <div class="text-2xl font-bold text-purple-400" id="todayWishes">0</div>
+              <div class="text-sm text-white/70">今日新增</div>
+            </div>
+          </div>
+          
+          <!-- 统计图表 -->
+          <div class="mt-4 h-40">
+            <canvas id="wishChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <!-- 页脚 -->
+    <footer class="mt-12 text-center text-white/60 text-sm">
+      <p>© 2024 新年心愿墙 | 多人共享版 | 心愿自动保留7天 | 祝大家新年快乐，心想事成</p>
+    </footer>
+  </div>
+  
+  <!-- 心愿详情弹窗 -->
+  <div id="wishModal" class="fixed inset-0 bg-black/50 backdrop-blur flex items-center justify-center z-50 hidden">
+    <div class="bg-white/10 backdrop-blur rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-white/20">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold">心愿详情</h3>
+        <button id="closeModal" class="text-white/70 hover:text-white">
+          <i class="fa fa-times text-xl"></i>
+        </button>
+      </div>
+      <div id="modalContent" class="text-center py-6">
+        <p id="modalWishAuthor" class="text-white/80 text-sm mb-2"></p>
+        <p id="modalWishText" class="text-2xl font-display mb-4"></p>
+        <p id="modalWishTime" class="text-white/70 text-sm"></p>
+      </div>
+      <div class="flex justify-center">
+        <button id="closeModalBtn" class="px-6 py-2 rounded-lg bg-secondary text-dark font-bold hover:bg-secondary/90 transition-colors">
+          关闭
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Firebase配置（请替换为你自己的配置）
+    const firebaseConfig = {
+		apiKey: "AIzaSyD0uBxgHJL3D3Ilr9PngQzwyV7lyfjkZuU",
+		authDomain: "new-year-wish-pool.firebaseapp.com",
+		projectId: "new-year-wish-pool",
+		storageBucket: "new-year-wish-pool.firebasestorage.app",
+		messagingSenderId: "347009599600",
+		appId: "1:347009599600:web:56d709d68e800249820cb5"
+    };
+
+    // 初始化Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    // 全局变量
+    let wishes = [];
+    let isDanmakuPaused = false;
+    let chart = null;
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000; // 一周的毫秒数
+    const danmakuAnimations = new Map(); // 存储弹幕动画状态
+    let wishUnsubscribe = null; // 监听取消函数
+    
+    // DOM元素
+    const nicknameInput = document.getElementById('nicknameInput');
+    const wishInput = document.getElementById('wishInput');
+    const charCount = document.getElementById('charCount');
+    const truncateNotice = document.getElementById('truncateNotice');
+    const submitWish = document.getElementById('submitWish');
+    const fontFamily = document.getElementById('fontFamily');
+    const fontSize = document.getElementById('fontSize');
+    const fontSizeValue = document.getElementById('fontSizeValue');
+    const customColor = document.getElementById('customColor');
+    const colorButtons = document.querySelectorAll('[data-color]');
+    const templateButtons = document.querySelectorAll('.template-btn');
+    const danmakuWrapper = document.getElementById('danmakuWrapper');
+    const particleContainer = document.getElementById('particleContainer');
+    const emptyState = document.getElementById('emptyState');
+    const loadingState = document.getElementById('loadingState');
+    const pauseDanmaku = document.getElementById('pauseDanmaku');
+    const resumeDanmaku = document.getElementById('resumeDanmaku');
+    const refreshDanmaku = document.getElementById('refreshDanmaku');
+    const wishModal = document.getElementById('wishModal');
+    const closeModal = document.getElementById('closeModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const modalWishAuthor = document.getElementById('modalWishAuthor');
+    const modalWishText = document.getElementById('modalWishText');
+    const modalWishTime = document.getElementById('modalWishTime');
+    const totalWishes = document.getElementById('totalWishes');
+    const activeWishes = document.getElementById('activeWishes');
+    const expiredWishes = document.getElementById('expiredWishes');
+    const todayWishes = document.getElementById('todayWishes');
+    const onlineCount = document.getElementById('onlineCount');
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      // 创建粒子背景
+      createParticles();
+      
+      // 加载心愿（从Firebase实时获取）
+      loadWishesFromFirebase();
+      
+      // 初始化图表
+      initChart();
+      
+      // 更新统计信息
+      updateWishStats();
+      
+      // 绑定事件监听
+      bindEventListeners();
+      
+      // 显示在线人数（模拟）
+      updateOnlineCount();
+    });
+    
+    // 创建粒子背景
+    function createParticles() {
+      const particlesContainer = document.getElementById('particles');
+      const particleCount = 50;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('particle');
+        
+        // 随机大小、位置和动画延迟
+        const size = Math.random() * 5 + 1;
+        const x = Math.random() * 100;
+        const y = Math.random() * 100;
+        const delay = Math.random() * 10;
+        const duration = Math.random() * 10 + 5;
+        
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        particle.style.left = `${x}%`;
+        particle.style.top = `${y}%`;
+        particle.style.animationDelay = `${delay}s`;
+        particle.style.animationDuration = `${duration}s`;
+        
+        particlesContainer.appendChild(particle);
+      }
+    }
+    
+    // 从Firebase加载心愿并实时监听
+    function loadWishesFromFirebase() {
+      loadingState.style.display = 'flex';
+      
+      // 取消之前的监听
+      if (wishUnsubscribe) {
+        wishUnsubscribe();
+      }
+      
+      // 监听心愿集合，实时获取更新
+      wishUnsubscribe = db.collection('wishes')
+        .where('timestamp', '>=', Date.now() - WEEK_MS) // 只获取7天内的心愿
+        .orderBy('timestamp', 'desc')
+        .onSnapshot((querySnapshot) => {
+          wishes = [];
+          
+          querySnapshot.forEach((doc) => {
+            const wishData = doc.data();
+            wishes.push({
+              id: doc.id,
+              ...wishData
+            });
+          });
+          
+          loadingState.style.display = 'none';
+          
+          // 渲染弹幕
+          renderDanmakus();
+          
+          // 更新统计信息
+          updateWishStats();
+        }, (error) => {
+          console.error("获取心愿失败：", error);
+          loadingState.style.display = 'none';
+          alert('加载心愿失败，请刷新页面重试');
+        });
+    }
+    
+    // 保存心愿到Firebase
+    async function saveWishToFirebase(wishData) {
+      try {
+        await db.collection('wishes').add({
+          ...wishData,
+          timestamp: Date.now()
+        });
+        return true;
+      } catch (error) {
+        console.error("保存心愿失败：", error);
+        return false;
+      }
+    }
+    
+    // 渲染弹幕
+    function renderDanmakus() {
+      // 清空现有弹幕和动画状态
+      danmakuWrapper.innerHTML = '';
+      danmakuAnimations.clear();
+      
+      // 检查是否有心愿
+      if (wishes.length === 0) {
+        emptyState.style.display = 'flex';
+        return;
+      }
+      
+      emptyState.style.display = 'none';
+      
+      // 创建并添加弹幕
+      wishes.forEach((wish, index) => {
+        createDanmaku(wish, index);
+      });
+      
+      // 启动动画循环
+      requestAnimationFrame(updateDanmakus);
+    }
+    
+    // 创建单个弹幕
+    function createDanmaku(wish, index) {
+      const danmaku = document.createElement('div');
+      danmaku.classList.add('danmaku');
+      danmaku.dataset.id = wish.id;
+      
+      // 设置文字内容和样式
+      danmaku.textContent = wish.content;
+      danmaku.style.fontFamily = getFontFamilyValue(wish.font);
+      danmaku.style.fontSize = `${wish.size}px`;
+      danmaku.style.color = wish.color;
+      
+      // 添加动画效果
+      if (wish.effect && wish.effect !== 'none') {
+        danmaku.classList.add(`animate-${wish.effect}`);
+      }
+      
+      // 获取弹幕容器尺寸
+      const containerRect = danmakuWrapper.getBoundingClientRect();
+      const containerWidth = containerRect.width;
+      const containerHeight = containerRect.height;
+      
+      // 计算弹幕尺寸（需要先添加到DOM中才能获取）
+      danmakuWrapper.appendChild(danmaku);
+      const danmakuRect = danmaku.getBoundingClientRect();
+      const danmakuWidth = danmakuRect.width;
+      const danmakuHeight = danmakuRect.height;
+      
+      // 随机初始位置（确保完全在容器内）
+      const startX = Math.random() * (containerWidth - danmakuWidth);
+      const startY = Math.random() * (containerHeight - danmakuHeight);
+      
+      // 随机初始方向（角度）
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 2 + 1; // 1-3px/帧
+      
+      // 保存动画状态
+      danmakuAnimations.set(wish.id, {
+        x: startX,
+        y: startY,
+        dx: Math.cos(angle) * speed,
+        dy: Math.sin(angle) * speed,
+        width: danmakuWidth,
+        height: danmakuHeight,
+        color: wish.color,
+        isPaused: false
+      });
+      
+      // 设置初始位置
+      danmaku.style.transform = `translate(${startX}px, ${startY}px)`;
+      
+      // 点击弹幕显示详情
+      danmaku.addEventListener('click', () => {
+        showWishDetails(wish);
+      });
+    }
+    
+    // 更新弹幕位置（动画循环）
+    function updateDanmakus(timestamp) {
+      if (isDanmakuPaused) {
+        requestAnimationFrame(updateDanmakus);
+        return;
+      }
+      
+      const containerRect = danmakuWrapper.getBoundingClientRect();
+      const containerWidth = containerRect.width;
+      const containerHeight = containerRect.height;
+      
+      // 遍历所有弹幕更新位置
+      danmakuAnimations.forEach((state, id) => {
+        if (state.isPaused) return;
+        
+        const danmaku = document.querySelector(`.danmaku[data-id="${id}"]`);
+        if (!danmaku) return;
+        
+        // 计算新位置
+        let newX = state.x + state.dx;
+        let newY = state.y + state.dy;
+        
+        // 检测边界碰撞
+        let hasCollision = false;
+        let collisionX = false;
+        let collisionY = false;
+        
+        // 左右边界
+        if (newX <= 0 || newX >= containerWidth - state.width) {
+          state.dx *= -1; // 反弹
+          newX = Math.max(0, Math.min(newX, containerWidth - state.width));
+          hasCollision = true;
+          collisionX = true;
+        }
+        
+        // 上下边界
+        if (newY <= 0 || newY >= containerHeight - state.height) {
+          state.dy *= -1; // 反弹
+          newY = Math.max(0, Math.min(newY, containerHeight - state.height));
+          hasCollision = true;
+          collisionY = true;
+        }
+        
+        // 如果发生碰撞，触发特效
+        if (hasCollision) {
+          // 播放反弹动画
+          danmaku.classList.add('animate-bounce-effect');
+          setTimeout(() => {
+            danmaku.classList.remove('animate-bounce-effect');
+          }, 500);
+          
+          // 闪烁效果
+          danmaku.classList.add('flash-effect');
+          setTimeout(() => {
+            danmaku.classList.remove('flash-effect');
+          }, 300);
+          
+          // 创建粒子爆炸效果
+          createBounceParticles(
+            newX + state.width / 2, 
+            newY + state.height / 2, 
+            state.color,
+            collisionX,
+            collisionY
+          );
+          
+          // 随机改变速度（微小变化）
+          const speedMultiplier = Math.random() * 0.4 + 0.8; // 0.8-1.2倍
+          state.dx *= speedMultiplier;
+          state.dy *= speedMultiplier;
+        }
+        
+        // 更新位置
+        state.x = newX;
+        state.y = newY;
+        danmaku.style.transform = `translate(${newX}px, ${newY}px)`;
+      });
+      
+      // 继续动画循环
+      requestAnimationFrame(updateDanmakus);
+    }
+    
+    // 创建反弹粒子效果
+    function createBounceParticles(x, y, color, isHorizontal, isVertical) {
+      const particleCount = 15;
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.classList.add('bounce-particle');
+        
+        // 粒子大小
+        const size = Math.random() * 4 + 2;
+        
+        // 粒子颜色（基于弹幕颜色，增加透明度）
+        const rgbColor = hexToRgb(color);
+        particle.style.backgroundColor = `rgba(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b}, ${Math.random() * 0.5 + 0.5})`;
+        
+        // 位置（相对于容器）
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        particle.style.transform = 'translate(-50%, -50%)';
+        
+        // 大小
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        
+        // 爆炸方向（根据碰撞方向调整）
+        let angle;
+        if (isHorizontal && isVertical) {
+          // 角落碰撞，全方位扩散
+          angle = Math.random() * Math.PI * 2;
+        } else if (isHorizontal) {
+          // 水平碰撞，垂直方向扩散为主
+          angle = Math.random() * Math.PI - Math.PI / 2;
+        } else {
+          // 垂直碰撞，水平方向扩散为主
+          angle = Math.random() * Math.PI;
+        }
+        
+        // 速度和距离
+        const speed = Math.random() * 5 + 3;
+        const distance = Math.random() * 30 + 10;
+        
+        // 动画
+        particle.style.transition = `transform ${Math.random() * 0.3 + 0.3}s ease-out, opacity ${Math.random() * 0.3 + 0.3}s ease-out`;
+        
+        // 添加到DOM
+        particleContainer.appendChild(particle);
+        
+        // 触发动画
+        setTimeout(() => {
+          const tx = Math.cos(angle) * distance;
+          const ty = Math.sin(angle) * distance;
+          particle.style.transform = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px))`;
+          particle.style.opacity = '0';
+        }, 10);
+        
+        // 移除粒子
+        setTimeout(() => {
+          particle.remove();
+        }, 1000);
+      }
+    }
+    
+    // HEX转RGB
+    function hexToRgb(hex) {
+      // 处理缩写形式
+      const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+      hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+      
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 255, g: 255, b: 255 };
+    }
+    
+    // 获取字体家族值
+    function getFontFamilyValue(font) {
+      const fontMap = {
+        'sans': '"Inter", system-ui, sans-serif',
+        'serif': '"Noto Serif SC", serif',
+        'cursive': '"ZCOOL KuaiLe", cursive',
+        'display': '"Ma Shan Zheng", cursive'
+      };
+      
+      return fontMap[font] || fontMap['sans'];
+    }
+    
+    // 显示心愿详情
+    function showWishDetails(wish) {
+      modalWishAuthor.textContent = wish.nickname ? `来自：${wish.nickname}` : '匿名用户';
+      modalWishText.textContent = wish.content;
+      
+      // 格式化时间
+      const date = new Date(wish.timestamp);
+      const formattedTime = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      
+      modalWishTime.textContent = `许下于 ${formattedTime}`;
+      
+      // 设置模态框文字样式
+      modalWishText.style.fontFamily = getFontFamilyValue(wish.font);
+      modalWishText.style.fontSize = `${wish.size}px`;
+      modalWishText.style.color = wish.color;
+      
+      if (wish.effect && wish.effect !== 'none') {
+        modalWishText.classList.add(`animate-${wish.effect}`);
+      } else {
+        modalWishText.classList.remove('animate-shine', 'animate-float', 'animate-pulse-slow');
+      }
+      
+      wishModal.style.display = 'flex';
+    }
+    
+    // 提交心愿
+    async function submitWishHandler() {
+      let content = wishInput.value.trim();
+      const nickname = nicknameInput.value.trim() || '匿名用户';
+      
+      // 验证输入
+      if (!content) {
+        alert('请输入你的心愿内容');
+        return;
+      }
+      
+      // 截取10个字（如果超过）
+      let truncated = false;
+      if (content.length > 10) {
+        // 随机选择10个连续的字
+        const maxStartIndex = content.length - 10;
+        const startIndex = Math.floor(Math.random() * (maxStartIndex + 1));
+        content = content.substring(startIndex, startIndex + 10);
+        truncated = true;
+      }
+      
+      // 创建新心愿
+      const newWish = {
+        content: content,
+        nickname: nickname,
+        font: fontFamily.value,
+        size: parseInt(fontSize.value),
+        color: customColor.value,
+        effect: document.querySelector('.template-btn.active')?.dataset.effect || 'none'
+      };
+      
+      // 显示加载状态
+      submitWish.disabled = true;
+      submitWish.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> 提交中...';
+      
+      // 保存到Firebase
+      const success = await saveWishToFirebase(newWish);
+      
+      // 恢复按钮状态
+      submitWish.disabled = false;
+      submitWish.innerHTML = '<i class="fa fa-paper-plane mr-2"></i> 放飞心愿';
+      
+      if (success) {
+        // 重置输入框
+        wishInput.value = '';
+        nicknameInput.value = '';
+        charCount.textContent = '0/10';
+        truncateNotice.style.display = 'none';
+        
+        // 显示成功提示
+        if (truncated) {
+          alert('心愿已提交！由于超过10字，已随机截取10字');
+        } else {
+          alert('心愿已提交！祝你的愿望早日实现～');
+        }
+      } else {
+        alert('提交失败，请检查网络连接后重试');
+      }
+    }
+    
+    // 更新心愿统计
+    function updateWishStats() {
+      const now = Date.now();
+      const todayStart = new Date(now);
+      todayStart.setHours(0, 0, 0, 0);
+      
+      const todayWishCount = wishes.filter(wish => wish.timestamp >= todayStart.getTime()).length;
+      
+      // 从Firebase获取总心愿数（包括过期的）
+      db.collection('wishes').get().then((querySnapshot) => {
+        const totalCount = querySnapshot.size;
+        const expiredCount = totalCount - wishes.length;
+        
+        totalWishes.textContent = totalCount;
+        activeWishes.textContent = wishes.length;
+        expiredWishes.textContent = expiredCount;
+        todayWishes.textContent = todayWishCount;
+        
+        // 更新图表
+        updateChart();
+      });
+    }
+    
+    // 初始化图表
+    function initChart() {
+      const ctx = document.getElementById('wishChart').getContext('2d');
+      
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['7天前', '6天前', '5天前', '4天前', '3天前', '2天前', '昨天', '今天'],
+          datasets: [{
+            label: '心愿数量',
+            data: getWishCountByDay(),
+            borderColor: '#FFD166',
+            backgroundColor: 'rgba(255, 209, 102, 0.2)',
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#FFD166',
+            pointBorderColor: '#fff',
+            pointHoverRadius: 6,
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              },
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.7)',
+                precision: 0
+              }
+            },
+            x: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              },
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.7)'
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    // 更新图表
+    function updateChart() {
+      chart.data.datasets[0].data = getWishCountByDay();
+      chart.update();
+    }
+    
+    // 按天统计心愿数量
+    function getWishCountByDay() {
+      const counts = [0, 0, 0, 0, 0, 0, 0, 0];
+      const now = Date.now();
+      
+      wishes.forEach(wish => {
+        const daysAgo = Math.floor((now - wish.timestamp) / (24 * 60 * 60 * 1000));
+        
+        if (daysAgo >= 0 && daysAgo < 7) {
+          counts[7 - daysAgo - 1]++;
+        } else if (daysAgo >= 7) {
+          counts[0]++;
+        }
+      });
+      
+      // 今天的心愿
+      const todayStart = new Date(now);
+      todayStart.setHours(0, 0, 0, 0);
+      counts[7] = wishes.filter(wish => wish.timestamp >= todayStart.getTime()).length;
+      
+      return counts;
+    }
+    
+    // 更新在线人数（模拟）
+    function updateOnlineCount() {
+      // 模拟在线人数（10-50人之间随机）
+      const randomCount = Math.floor(Math.random() * 40) + 10;
+      onlineCount.textContent = `在线 ${randomCount} 人`;
+      
+      // 每30秒更新一次
+      setTimeout(updateOnlineCount, 30000);
+    }
+    
+    // 绑定事件监听
+    function bindEventListeners() {
+      // 输入框字数统计
+      wishInput.addEventListener('input', () => {
+        const length = wishInput.value.length;
+        charCount.textContent = `${length}/10`;
+        
+        if (length > 10) {
+          truncateNotice.style.display = 'inline';
+          charCount.classList.add('text-secondary');
+        } else {
+          truncateNotice.style.display = 'none';
+          charCount.classList.remove('text-secondary');
+        }
+      });
+      
+      // 字号滑块
+      fontSize.addEventListener('input', () => {
+        fontSizeValue.textContent = `${fontSize.value}px`;
+      });
+      
+      // 颜色选择
+      colorButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          const color = button.dataset.color;
+          customColor.value = color;
+          
+          // 更新选中状态
+          colorButtons.forEach(btn => btn.classList.remove('ring-2', 'ring-secondary'));
+          button.classList.add('ring-2', 'ring-secondary');
+        });
+      });
+      
+      // 自定义颜色选择
+      customColor.addEventListener('input', () => {
+        colorButtons.forEach(btn => btn.classList.remove('ring-2', 'ring-secondary'));
+      });
+      
+      // 模板选择
+      templateButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          // 移除其他模板的激活状态
+          templateButtons.forEach(btn => btn.classList.remove('active', 'border-secondary', 'bg-white/20'));
+          
+          // 添加当前模板的激活状态
+          button.classList.add('active', 'border-secondary', 'bg-white/20');
+          
+          // 应用模板设置
+          fontFamily.value = button.dataset.font;
+          fontSize.value = button.dataset.size;
+          fontSizeValue.textContent = `${button.dataset.size}px`;
+          customColor.value = button.dataset.color;
+          
+          // 重置颜色按钮选中状态
+          colorButtons.forEach(btn => {
+            btn.classList.remove('ring-2', 'ring-secondary');
+            if (btn.dataset.color === button.dataset.color) {
+              btn.classList.add('ring-2', 'ring-secondary');
+            }
+          });
+        });
+      });
+      
+      // 提交心愿
+      submitWish.addEventListener('click', submitWishHandler);
+      
+      // 按Enter提交
+      wishInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          submitWishHandler();
+        }
+      });
+      
+      // 弹幕控制
+      pauseDanmaku.addEventListener('click', () => {
+        isDanmakuPaused = true;
+        
+        // 暂停所有弹幕动画
+        danmakuAnimations.forEach(state => {
+          state.isPaused = true;
+        });
+      });
+      
+      resumeDanmaku.addEventListener('click', () => {
+        isDanmakuPaused = false;
+        
+        // 恢复所有弹幕动画
+        danmakuAnimations.forEach(state => {
+          state.isPaused = false;
+        });
+        
+        // 重启动画循环
+        requestAnimationFrame(updateDanmakus);
+      });
+      
+      refreshDanmaku.addEventListener('click', () => {
+        loadingState.style.display = 'flex';
+        setTimeout(() => {
+          loadWishesFromFirebase();
+        }, 500);
+      });
+      
+      // 模态框控制
+      closeModal.addEventListener('click', () => {
+        wishModal.style.display = 'none';
+      });
+      
+      closeModalBtn.addEventListener('click', () => {
+        wishModal.style.display = 'none';
+      });
+      
+      // 点击模态框外部关闭
+      wishModal.addEventListener('click', (e) => {
+        if (e.target === wishModal) {
+          wishModal.style.display = 'none';
+        }
+      });
+      
+      // 窗口大小改变时重新渲染弹幕
+      window.addEventListener('resize', () => {
+        if (wishes.length > 0) {
+          renderDanmakus();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
