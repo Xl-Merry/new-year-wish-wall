@@ -3,14 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>新年心愿墙 | 多人共享版</title>
+  <title>新年心愿墙 | 2024心愿弹幕</title>
   <!-- 引入外部资源 -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-  <!-- 引入Firebase（免费后端） -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
   
   <!-- 配置Tailwind CSS -->
   <script>
@@ -174,7 +171,7 @@
         新年心愿墙
       </h1>
       <p class="text-[clamp(1rem,2vw,1.25rem)] text-light/80 max-w-2xl mx-auto">
-        写下你的新年愿望，与同事们共同分享 | 心愿自动保留7天
+        写下你的新年愿望，让心愿化作弹幕，传递美好祝福 | 心愿自动保留一周
       </p>
     </header>
     
@@ -185,18 +182,6 @@
         <h2 class="text-2xl font-bold mb-6 flex items-center">
           <i class="fa fa-star text-secondary mr-2"></i> 许下心愿
         </h2>
-        
-        <!-- 昵称输入（可选） -->
-        <div class="mb-6">
-          <label for="nicknameInput" class="block text-sm font-medium mb-2">你的昵称（可选）</label>
-          <input 
-            type="text" 
-            id="nicknameInput" 
-            class="w-full px-4 py-2 rounded-lg bg-white/20 border border-white/30 focus:border-secondary focus:ring-2 focus:ring-secondary/50 outline-none text-white placeholder-white/60"
-            placeholder="输入你的昵称（不填则匿名）"
-            maxlength="10"
-          >
-        </div>
         
         <!-- 心愿输入框 -->
         <div class="mb-6">
@@ -209,7 +194,7 @@
           ></textarea>
           <div class="flex justify-between mt-2 text-xs text-white/70">
             <span id="charCount">0/10</span>
-            <span class="text-secondary" id="truncateNotice" style="display: none;">已自动截取10字</span>
+            <span class="text-secondary" id="truncateNotice" style="display: none;">已自动截取前10字</span>
           </div>
         </div>
         
@@ -296,7 +281,6 @@
         <div class="bg-white/10 backdrop-blur rounded-2xl p-4 mb-4 flex justify-between items-center">
           <h2 class="text-xl font-bold flex items-center">
             <i class="fa fa-comments text-secondary mr-2"></i> 心愿弹幕
-            <span id="onlineCount" class="ml-2 text-sm bg-secondary/20 text-secondary px-2 py-0.5 rounded-full">加载中...</span>
           </h2>
           <div class="flex gap-3">
             <button id="pauseDanmaku" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center">
@@ -305,8 +289,8 @@
             <button id="resumeDanmaku" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center">
               <i class="fa fa-play mr-1"></i> 继续
             </button>
-            <button id="refreshDanmaku" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center">
-              <i class="fa fa-refresh mr-1"></i> 刷新
+            <button id="clearDanmaku" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center">
+              <i class="fa fa-trash mr-1"></i> 清空
             </button>
           </div>
         </div>
@@ -330,7 +314,7 @@
           </div>
           
           <!-- 加载提示 -->
-          <div id="loadingState" class="absolute inset-0 flex items-center justify-center">
+          <div id="loadingState" class="absolute inset-0 flex items-center justify-center" style="display: none;">
             <div class="loader"></div>
           </div>
         </div>
@@ -367,7 +351,7 @@
     
     <!-- 页脚 -->
     <footer class="mt-12 text-center text-white/60 text-sm">
-      <p>© 2024 新年心愿墙 | 多人共享版 | 心愿自动保留7天 | 祝大家新年快乐，心想事成</p>
+      <p>© 2024 新年心愿墙 | 心愿自动保留7天 | 祝大家新年快乐，心想事成</p>
     </footer>
   </div>
   
@@ -381,7 +365,6 @@
         </button>
       </div>
       <div id="modalContent" class="text-center py-6">
-        <p id="modalWishAuthor" class="text-white/80 text-sm mb-2"></p>
         <p id="modalWishText" class="text-2xl font-display mb-4"></p>
         <p id="modalWishTime" class="text-white/70 text-sm"></p>
       </div>
@@ -394,30 +377,14 @@
   </div>
 
   <script>
-    // Firebase配置（请替换为你自己的配置）
-    const firebaseConfig = {
-		apiKey: "AIzaSyD0uBxgHJL3D3Ilr9PngQzwyV7lyfjkZuU",
-		authDomain: "new-year-wish-pool.firebaseapp.com",
-		projectId: "new-year-wish-pool",
-		storageBucket: "new-year-wish-pool.firebasestorage.app",
-		messagingSenderId: "347009599600",
-		appId: "1:347009599600:web:56d709d68e800249820cb5"
-    };
-
-    // 初始化Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-    
     // 全局变量
     let wishes = [];
     let isDanmakuPaused = false;
     let chart = null;
     const WEEK_MS = 7 * 24 * 60 * 60 * 1000; // 一周的毫秒数
     const danmakuAnimations = new Map(); // 存储弹幕动画状态
-    let wishUnsubscribe = null; // 监听取消函数
     
     // DOM元素
-    const nicknameInput = document.getElementById('nicknameInput');
     const wishInput = document.getElementById('wishInput');
     const charCount = document.getElementById('charCount');
     const truncateNotice = document.getElementById('truncateNotice');
@@ -434,26 +401,24 @@
     const loadingState = document.getElementById('loadingState');
     const pauseDanmaku = document.getElementById('pauseDanmaku');
     const resumeDanmaku = document.getElementById('resumeDanmaku');
-    const refreshDanmaku = document.getElementById('refreshDanmaku');
+    const clearDanmaku = document.getElementById('clearDanmaku');
     const wishModal = document.getElementById('wishModal');
     const closeModal = document.getElementById('closeModal');
     const closeModalBtn = document.getElementById('closeModalBtn');
-    const modalWishAuthor = document.getElementById('modalWishAuthor');
     const modalWishText = document.getElementById('modalWishText');
     const modalWishTime = document.getElementById('modalWishTime');
     const totalWishes = document.getElementById('totalWishes');
     const activeWishes = document.getElementById('activeWishes');
     const expiredWishes = document.getElementById('expiredWishes');
     const todayWishes = document.getElementById('todayWishes');
-    const onlineCount = document.getElementById('onlineCount');
     
     // 初始化
     document.addEventListener('DOMContentLoaded', () => {
       // 创建粒子背景
       createParticles();
       
-      // 加载心愿（从Firebase实时获取）
-      loadWishesFromFirebase();
+      // 加载本地存储的心愿
+      loadWishes();
       
       // 初始化图表
       initChart();
@@ -463,9 +428,6 @@
       
       // 绑定事件监听
       bindEventListeners();
-      
-      // 显示在线人数（模拟）
-      updateOnlineCount();
     });
     
     // 创建粒子背景
@@ -495,56 +457,28 @@
       }
     }
     
-    // 从Firebase加载心愿并实时监听
-    function loadWishesFromFirebase() {
-      loadingState.style.display = 'flex';
+    // 加载本地存储的心愿
+    function loadWishes() {
+      const storedWishes = localStorage.getItem('newYearWishes');
       
-      // 取消之前的监听
-      if (wishUnsubscribe) {
-        wishUnsubscribe();
+      if (storedWishes) {
+        wishes = JSON.parse(storedWishes);
+        
+        // 过滤掉过期的心愿
+        const now = Date.now();
+        wishes = wishes.filter(wish => now - wish.timestamp < WEEK_MS);
+        
+        // 保存过滤后的心愿
+        saveWishes();
+        
+        // 渲染弹幕
+        renderDanmakus();
       }
-      
-      // 监听心愿集合，实时获取更新
-      wishUnsubscribe = db.collection('wishes')
-        .where('timestamp', '>=', Date.now() - WEEK_MS) // 只获取7天内的心愿
-        .orderBy('timestamp', 'desc')
-        .onSnapshot((querySnapshot) => {
-          wishes = [];
-          
-          querySnapshot.forEach((doc) => {
-            const wishData = doc.data();
-            wishes.push({
-              id: doc.id,
-              ...wishData
-            });
-          });
-          
-          loadingState.style.display = 'none';
-          
-          // 渲染弹幕
-          renderDanmakus();
-          
-          // 更新统计信息
-          updateWishStats();
-        }, (error) => {
-          console.error("获取心愿失败：", error);
-          loadingState.style.display = 'none';
-          alert('加载心愿失败，请刷新页面重试');
-        });
     }
     
-    // 保存心愿到Firebase
-    async function saveWishToFirebase(wishData) {
-      try {
-        await db.collection('wishes').add({
-          ...wishData,
-          timestamp: Date.now()
-        });
-        return true;
-      } catch (error) {
-        console.error("保存心愿失败：", error);
-        return false;
-      }
+    // 保存心愿到本地存储
+    function saveWishes() {
+      localStorage.setItem('newYearWishes', JSON.stringify(wishes));
     }
     
     // 渲染弹幕
@@ -799,7 +733,6 @@
     
     // 显示心愿详情
     function showWishDetails(wish) {
-      modalWishAuthor.textContent = wish.nickname ? `来自：${wish.nickname}` : '匿名用户';
       modalWishText.textContent = wish.content;
       
       // 格式化时间
@@ -823,9 +756,8 @@
     }
     
     // 提交心愿
-    async function submitWishHandler() {
+    function submitWishHandler() {
       let content = wishInput.value.trim();
-      const nickname = nicknameInput.value.trim() || '匿名用户';
       
       // 验证输入
       if (!content) {
@@ -845,40 +777,33 @@
       
       // 创建新心愿
       const newWish = {
+        id: Date.now().toString(),
         content: content,
-        nickname: nickname,
         font: fontFamily.value,
         size: parseInt(fontSize.value),
         color: customColor.value,
-        effect: document.querySelector('.template-btn.active')?.dataset.effect || 'none'
+        effect: document.querySelector('.template-btn.active')?.dataset.effect || 'none',
+        timestamp: Date.now()
       };
       
-      // 显示加载状态
-      submitWish.disabled = true;
-      submitWish.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i> 提交中...';
+      // 添加到心愿列表
+      wishes.unshift(newWish);
       
-      // 保存到Firebase
-      const success = await saveWishToFirebase(newWish);
+      // 保存并渲染
+      saveWishes();
+      renderDanmakus();
+      updateWishStats();
       
-      // 恢复按钮状态
-      submitWish.disabled = false;
-      submitWish.innerHTML = '<i class="fa fa-paper-plane mr-2"></i> 放飞心愿';
+      // 重置输入框
+      wishInput.value = '';
+      charCount.textContent = '0/10';
+      truncateNotice.style.display = 'none';
       
-      if (success) {
-        // 重置输入框
-        wishInput.value = '';
-        nicknameInput.value = '';
-        charCount.textContent = '0/10';
-        truncateNotice.style.display = 'none';
-        
-        // 显示成功提示
-        if (truncated) {
-          alert('心愿已提交！由于超过10字，已随机截取10字');
-        } else {
-          alert('心愿已提交！祝你的愿望早日实现～');
-        }
+      // 显示成功提示
+      if (truncated) {
+        alert('心愿已提交！由于超过10字，已随机截取10字');
       } else {
-        alert('提交失败，请检查网络连接后重试');
+        alert('心愿已提交！祝你的愿望早日实现～');
       }
     }
     
@@ -889,20 +814,15 @@
       todayStart.setHours(0, 0, 0, 0);
       
       const todayWishCount = wishes.filter(wish => wish.timestamp >= todayStart.getTime()).length;
+      const expiredCount = JSON.parse(localStorage.getItem('newYearWishes') || '[]').length - wishes.length;
       
-      // 从Firebase获取总心愿数（包括过期的）
-      db.collection('wishes').get().then((querySnapshot) => {
-        const totalCount = querySnapshot.size;
-        const expiredCount = totalCount - wishes.length;
-        
-        totalWishes.textContent = totalCount;
-        activeWishes.textContent = wishes.length;
-        expiredWishes.textContent = expiredCount;
-        todayWishes.textContent = todayWishCount;
-        
-        // 更新图表
-        updateChart();
-      });
+      totalWishes.textContent = JSON.parse(localStorage.getItem('newYearWishes') || '[]').length;
+      activeWishes.textContent = wishes.length;
+      expiredWishes.textContent = expiredCount;
+      todayWishes.textContent = todayWishCount;
+      
+      // 更新图表
+      updateChart();
     }
     
     // 初始化图表
@@ -985,16 +905,6 @@
       counts[7] = wishes.filter(wish => wish.timestamp >= todayStart.getTime()).length;
       
       return counts;
-    }
-    
-    // 更新在线人数（模拟）
-    function updateOnlineCount() {
-      // 模拟在线人数（10-50人之间随机）
-      const randomCount = Math.floor(Math.random() * 40) + 10;
-      onlineCount.textContent = `在线 ${randomCount} 人`;
-      
-      // 每30秒更新一次
-      setTimeout(updateOnlineCount, 30000);
     }
     
     // 绑定事件监听
@@ -1093,11 +1003,13 @@
         requestAnimationFrame(updateDanmakus);
       });
       
-      refreshDanmaku.addEventListener('click', () => {
-        loadingState.style.display = 'flex';
-        setTimeout(() => {
-          loadWishesFromFirebase();
-        }, 500);
+      clearDanmaku.addEventListener('click', () => {
+        if (confirm('确定要清空所有心愿吗？此操作不可恢复！')) {
+          wishes = [];
+          saveWishes();
+          renderDanmakus();
+          updateWishStats();
+        }
       });
       
       // 模态框控制
